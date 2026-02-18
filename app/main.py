@@ -168,16 +168,20 @@ async def get_leads_by_sales_owner(owner_id: Optional[int] = None):
         raise HTTPException(status_code=500, detail=str(e))
 
 # ============================================
-# 7. Advisor-wise Opportunities and Stages
+# 7. Dashboard Summary
 # ============================================
-@app.get("/api/opportunities-by-advisor")
-async def get_opportunities_by_advisor(advisor_id: Optional[int] = None):
+@app.get("/api/summary")
+async def get_dashboard_summary():
     """
-    Get opportunities grouped by advisor (sales owner) with stage breakdown
-    Optional: filter by specific advisor_id
+    Get aggregated dashboard summary with key metrics:
+    - Total contacts and opportunities
+    - Contacts without opportunities
+    - Source breakdown
+    - Top deal stages
+    - Top sales owners
     """
     try:
-        result = await analytics_service.get_opportunities_by_advisor(advisor_id=advisor_id)
+        result = await analytics_service.get_dashboard_summary()
         return {
             "success": True,
             "data": result

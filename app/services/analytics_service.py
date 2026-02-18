@@ -92,51 +92,91 @@ class AnalyticsService:
     
     async def get_contacts_by_source(self, source_filter: Optional[str] = None) -> Dict[str, List[Dict]]:
         """
-        Group contacts by source type (Referral, Walk-in, Online Walk-in)
+        Group contacts by source type using sales accounts from deals, tags, and deal stages
         
         Args:
             source_filter: Optional filter for specific source type
         """
         contacts = await self.freshworks.get_all_contacts_paginated()
+        deals = await self.freshworks.get_all_deals_paginated()
+        
+        # Build a map of normalized deal names to their sales account names
+        deal_name_to_source = {}
+        
+        for deal in deals:
+            deal_name = deal.get("name", "").strip().lower()
+            normalized_deal_name = " ".join(deal_name.split())
+            
+            # Priority 1: Get sales account name (most reliable)
+            sales_account_id = deal.get("sales_account_id")
+            if sales_account_id:
+                sales_account = await self.freshworks.get_sales_account(sales_account_id)
+                if sales_account and sales_account.get("name"):
+                    account_name = sales_account["name"].strip()
+                    deal_name_to_source[normalized_deal_name] = account_name
+                    continue
+            
+            # Priority 2: Use stage name if it indicates a source
+            stage_name = deal.get("deal_stage", {}).get("name") if isinstance(deal.get("deal_stage"), dict) else None
+            if stage_name and any(keyword in stage_name.lower() for keyword in ["walk", "online", "referral", "reference", "lead"]):
+                deal_name_to_source[normalized_deal_name] = stage_name
         
         # Group contacts by source
-        grouped = {
-            "referral": [],
-            "walk_in": [],
-            "online_walk_in": [],
-            "other": []
-        }
+        grouped = defaultdict(list)
         
         for contact in contacts:
-            # Check various source fields (adjust based on your Freshworks schema)
-            source = contact.get("lead_source_id") or contact.get("medium") or contact.get("source") or ""
-            source_lower = str(source).lower()
+            # Build contact full name
+            first_name = (contact.get("first_name") or "").strip()
+            last_name = (contact.get("last_name") or "").strip()
+            full_name = f"{first_name} {last_name}".strip()
+            full_name_normalized = " ".join(full_name.lower().split())
             
-            # Categorize based on source
-            if "referral" in source_lower or "reference" in source_lower:
-                grouped["referral"].append(contact)
-            elif "walk" in source_lower and "online" not in source_lower:
-                grouped["walk_in"].append(contact)
-            elif "online" in source_lower and "walk" in source_lower:
-                grouped["online_walk_in"].append(contact)
-            elif source_lower in ["", "none", "null"]:
-                grouped["other"].append(contact)
+            # Priority 1: Check if contact has tags (e.g., "Priyesh Reference")
+            tags = contact.get("tags", [])
+            if tags and len(tags) > 0:
+                for tag in tags:
+                    source_key = str(tag).strip()
+                    grouped[source_key].append(contact)
+                continue
+            
+            # Priority 2: Try to match contact with deal by name
+            matched_source = None
+            
+            # Exact match
+            if full_name_normalized in deal_name_to_source:
+                matched_source = deal_name_to_source[full_name_normalized]
             else:
-                # Check custom fields if they exist
-                custom_fields = contact.get("custom_field", {})
-                if custom_fields:
-                    # Add logic for custom field checking
-                    pass
-                grouped["other"].append(contact)
+                # Partial match - check if contact name is in deal name or vice versa
+                for deal_name, source_name in deal_name_to_source.items():
+                    if full_name_normalized in deal_name or deal_name in full_name_normalized:
+                        matched_source = source_name
+                        break
+                    
+                    # Also check individual name parts for better matching
+                    contact_parts = full_name_normalized.split()
+                    deal_parts = deal_name.split()
+                    
+                    if all(part in deal_parts for part in contact_parts if len(part) >= 3):
+                        matched_source = source_name
+                        break
+            
+            # Categorize based on matched source
+            if matched_source:
+                grouped[matched_source].append(contact)
+            else:
+                # No match found
+                grouped["No Source"].append(contact)
+        
+        # Convert to regular dict
+        result = dict(grouped)
         
         # Apply filter if specified
         if source_filter:
-            filter_key = source_filter.lower().replace(" ", "_").replace("-", "_")
-            if filter_key in grouped:
-                return {filter_key: grouped[filter_key]}
+            if source_filter in result:
+                return {source_filter: result[source_filter]}
             return {source_filter: []}
         
-        return grouped
+        return result
     
     async def get_opportunities_by_stage(self, stage_filter: Optional[str] = None) -> Dict[str, List[Dict]]:
         """
@@ -306,3 +346,65 @@ class AnalyticsService:
             stages.add(stage_name)
         
         return sorted(list(stages))
+    
+    async def get_dashboard_summary(self) -> Dict[str, Any]:
+        """
+        Get aggregated summary data for the dashboard
+        Returns total contacts, opportunities, sources breakdown, top stages, and top owners
+        """
+        # Get all data in parallel for efficiency
+        contacts = await self.freshworks.get_all_contacts_paginated()
+        deals = await self.freshworks.get_all_deals_paginated()
+        contacts_without_opps = await self.get_contacts_without_opportunities()
+        sources_grouped = await self.get_contacts_by_source()
+        
+        # Calculate total opportunity value
+        total_value = sum(float(deal.get("amount") or deal.get("deal_value") or 0) for deal in deals)
+        
+        # Get stage distribution with counts and values
+        stage_stats = defaultdict(lambda: {"count": 0, "total_value": 0})
+        for deal in deals:
+            stage_name = deal.get("deal_stage", {}).get("name") if isinstance(deal.get("deal_stage"), dict) else "Unknown"
+            stage_stats[stage_name]["count"] += 1
+            stage_stats[stage_name]["total_value"] += float(deal.get("amount") or deal.get("deal_value") or 0)
+        
+        # Sort stages by count and get top 10
+        top_stages = sorted(
+            [{"stage": stage, "count": stats["count"], "total_value": stats["total_value"]} 
+             for stage, stats in stage_stats.items()],
+            key=lambda x: x["count"],
+            reverse=True
+        )[:10]
+        
+        # Get owner distribution with counts and values
+        owner_stats = defaultdict(lambda: {"count": 0, "total_value": 0})
+        for deal in deals:
+            owner = deal.get("owner")
+            if isinstance(owner, dict):
+                owner_name = owner.get("display_name") or owner.get("email") or f"Owner {owner.get('id')}"
+            else:
+                owner_name = f"Owner {owner}" if owner else "Unassigned"
+            
+            owner_stats[owner_name]["count"] += 1
+            owner_stats[owner_name]["total_value"] += float(deal.get("amount") or deal.get("deal_value") or 0)
+        
+        # Sort owners by count and get top 10
+        top_owners = sorted(
+            [{"owner": owner, "count": stats["count"], "total_value": stats["total_value"]} 
+             for owner, stats in owner_stats.items()],
+            key=lambda x: x["count"],
+            reverse=True
+        )[:10]
+        
+        # Get sources breakdown (count per source)
+        sources_breakdown = {source: len(contacts_list) for source, contacts_list in sources_grouped.items()}
+        
+        return {
+            "total_contacts": len(contacts),
+            "total_opportunities": len(deals),
+            "contacts_without_opportunities": len(contacts_without_opps),
+            "total_opportunity_value": total_value,
+            "sources_breakdown": sources_breakdown,
+            "top_stages": top_stages,
+            "top_owners": top_owners
+        }

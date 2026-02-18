@@ -344,9 +344,9 @@
                 <div class="btn-description">Leads filtered by sales owner</div>
             </button>
 
-            <button class="dashboard-btn" data-view="opportunities-by-advisor">
-                <div class="btn-title">🎓 Advisor Analysis</div>
-                <div class="btn-description">Advisor-wise opportunities & stages</div>
+            <button class="dashboard-btn" data-view="summary">
+                <div class="btn-title">📈 Summary Dashboard</div>
+                <div class="btn-description">Key metrics and insights</div>
             </button>
         </div>
 
@@ -405,8 +405,8 @@
                     case 'leads-by-sales-owner':
                         await loadLeadsBySalesOwner();
                         break;
-                    case 'opportunities-by-advisor':
-                        await loadOpportunitiesByAdvisor();
+                    case 'summary':
+                        await loadSummary();
                         break;
                 }
             } catch (error) {
@@ -641,7 +641,7 @@
             document.getElementById('content').innerHTML = html;
         }
 
-        async function loadContactsBySource() {
+        async function loadContactsBySource(filterSource = null) {
             const response = await fetch(`${API_BASE}/api/contacts-by-source`);
             const data = await response.json();
 
@@ -652,53 +652,80 @@
 
             let html = '<div class="section-title">📊 Contacts by Source <button class="refresh-btn" onclick="loadView(\'contacts-by-source\')">🔄 Refresh</button></div>';
             
-            html += `<div class="stats-cards">
+            // Create filter buttons for each source type
+            html += '<div style="margin-bottom: 20px; display: flex; flex-wrap: wrap; gap: 10px;">';
+            html += `<button class="dashboard-btn" style="padding: 10px 20px; ${!filterSource ? 'background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white;' : ''}" onclick="loadContactsBySource(null)">All Sources</button>`;
+            
+            // Create buttons for each source category
+            const sourceCategories = Object.keys(grouped).sort((a, b) => grouped[b].length - grouped[a].length);
+            for (const source of sourceCategories) {
+                const isActive = filterSource === source;
+                const buttonStyle = isActive ? 'background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white;' : '';
+                const displayName = source.replace(/_/g, ' ');
+                html += `<button class="dashboard-btn" style="padding: 10px 20px; ${buttonStyle}" onclick="loadContactsBySource('${source.replace(/'/g, "\\'")}')">${displayName} (${grouped[source].length})</button>`;
+            }
+            html += '</div>';
+            
+            // Stats cards for overview
+            html += `<div class="stats-cards">`;
+            
+            // Count different types
+            const referenceCount = Object.entries(grouped).filter(([key]) => key.toLowerCase().includes('reference') || key.toLowerCase().includes('referral')).reduce((sum, [_, contacts]) => sum + contacts.length, 0);
+            const walkInCount = Object.entries(grouped).filter(([key]) => key.toLowerCase().includes('walk')).reduce((sum, [_, contacts]) => sum + contacts.length, 0);
+            const leadsCount = Object.entries(grouped).filter(([key]) => key.toLowerCase().includes('lead')).reduce((sum, [_, contacts]) => sum + contacts.length, 0);
+            const otherCount = Object.entries(grouped).filter(([key]) => !key.toLowerCase().includes('reference') && !key.toLowerCase().includes('referral') && !key.toLowerCase().includes('walk') && !key.toLowerCase().includes('lead')).reduce((sum, [_, contacts]) => sum + contacts.length, 0);
+            
+            html += `
                 <div class="stat-card">
-                    <div class="stat-number">${breakdown.referral}</div>
-                    <div class="stat-label">Referrals</div>
+                    <div class="stat-number">${referenceCount}</div>
+                    <div class="stat-label">References</div>
                 </div>
                 <div class="stat-card">
-                    <div class="stat-number">${breakdown.walk_in}</div>
+                    <div class="stat-number">${walkInCount}</div>
                     <div class="stat-label">Walk-ins</div>
                 </div>
                 <div class="stat-card">
-                    <div class="stat-number">${breakdown.online_walk_in}</div>
-                    <div class="stat-label">Online Walk-ins</div>
+                    <div class="stat-number">${leadsCount}</div>
+                    <div class="stat-label">Leads</div>
                 </div>
                 <div class="stat-card">
-                    <div class="stat-number">${breakdown.other}</div>
+                    <div class="stat-number">${otherCount}</div>
                     <div class="stat-label">Other</div>
                 </div>
             </div>`;
 
-            // Display each source type
-            for (const [source, contacts] of Object.entries(grouped)) {
-                if (contacts.length > 0) {
-                    const sourceName = source.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+            // Display contacts based on filter
+            const sourcesToDisplay = filterSource ? [[filterSource, grouped[filterSource]]] : Object.entries(grouped).sort((a, b) => b[1].length - a[1].length);
+            
+            for (const [source, contacts] of sourcesToDisplay) {
+                if (contacts && contacts.length > 0) {
+                    const sourceName = source.replace(/_/g, ' ');
                     html += `<h3 style="margin-top: 30px; color: #10b981;">${sourceName} (${contacts.length})</h3>`;
                     html += '<div class="table-container"><table><thead><tr>';
-                    html += '<th>S No.</th><th>Name</th><th>Email</th><th>Phone</th><th>Company</th>';
+                    html += '<th>S No.</th><th>Name</th><th>Email</th><th>Phone</th><th>Lead Score</th>';
                     html += '</tr></thead><tbody>';
 
-                    contacts.slice(0, 10).forEach((contact, index) => {
+                    const displayLimit = filterSource ? 50 : 10;
+                    contacts.slice(0, displayLimit).forEach((contact, index) => {
                         const firstName = contact.first_name || '';
                         const lastName = contact.last_name || '';
                         const fullName = `${firstName} ${lastName}`.trim();
                         const displayName = fullName || contact.email || contact.id || 'No Name';
+                        const leadScore = contact.lead_score || 0;
                         
                         html += `<tr>
                             <td><strong>${index + 1}</strong></td>
                             <td><strong>${displayName}</strong></td>
                             <td>${contact.email || 'N/A'}</td>
                             <td>${contact.mobile_number || contact.work_number || 'N/A'}</td>
-                            <td>${contact.company_name || 'N/A'}</td>
+                            <td><span class="badge ${leadScore >= 50 ? 'badge-success' : leadScore >= 25 ? 'badge-warning' : 'badge-danger'}">${leadScore}</span></td>
                         </tr>`;
                     });
 
                     html += '</tbody></table></div>';
                     
-                    if (contacts.length > 10) {
-                        html += `<p style="text-align: center; color: #999; margin-top: 10px;">... and ${contacts.length - 10} more</p>`;
+                    if (contacts.length > displayLimit) {
+                        html += `<p style="text-align: center; color: #999; margin-top: 10px;">... and ${contacts.length - displayLimit} more</p>`;
                     }
                 }
             }
@@ -719,7 +746,7 @@
             
             html += '<div class="stats-cards">';
             for (const [stage, opportunities] of Object.entries(grouped)) {
-                const totalValue = opportunities.reduce((sum, opp) => sum + (opp.amount || 0), 0);
+                const totalValue = opportunities.reduce((sum, opp) => sum + parseFloat(opp.amount || 0), 0);
                 html += `<div class="stat-card">
                     <div class="stat-number">${opportunities.length}</div>
                     <div class="stat-label">${stage}</div>
@@ -730,7 +757,7 @@
             // Display each stage
             for (const [stage, opportunities] of Object.entries(grouped)) {
                 if (opportunities.length > 0) {
-                    const totalValue = opportunities.reduce((sum, opp) => sum + (opp.amount || 0), 0);
+                    const totalValue = opportunities.reduce((sum, opp) => sum + parseFloat(opp.amount || 0), 0);
                     html += `<h3 style="margin-top: 30px; color: #10b981;">${stage} (${opportunities.length} - $${(totalValue / 1000).toFixed(1)}K)</h3>`;
                     html += '<div class="table-container"><table><thead><tr>';
                     html += '<th>S No.</th><th>Name</th><th>Amount</th><th>Owner</th><th>Created</th>';
@@ -751,7 +778,7 @@
                         html += `<tr>
                             <td><strong>${index + 1}</strong></td>
                             <td><strong>${opp.name || 'Untitled'}</strong></td>
-                            <td>$${(opp.amount || 0).toLocaleString()}</td>
+                            <td>$${parseFloat(opp.amount || 0).toLocaleString()}</td>
                             <td><span class="badge badge-info">${ownerName}</span></td>
                             <td>${createdDate}</td>
                         </tr>`;
@@ -818,75 +845,87 @@
             document.getElementById('content').innerHTML = html;
         }
 
-        async function loadOpportunitiesByAdvisor() {
-            const response = await fetch(`${API_BASE}/api/opportunities-by-advisor`);
+        async function loadSummary() {
+            const response = await fetch(`${API_BASE}/api/summary`);
             const data = await response.json();
 
-            if (!data.success) throw new Error('Failed to load data');
+            if (!data.success) throw new Error('Failed to load summary data');
 
-            const grouped = data.data;
+            const summary = data.data;
 
-            let html = '<div class="section-title">🎓 Advisor-wise Opportunities & Stages <button class="refresh-btn" onclick="loadView(\'opportunities-by-advisor\')">🔄 Refresh</button></div>';
+            let html = '<div class="section-title">📈 CRM Dashboard Summary <button class="refresh-btn" onclick="loadView(\'summary\')">🔄 Refresh</button></div>';
             
-            // Display each advisor
-            for (const [advisorName, advisorData] of Object.entries(grouped)) {
-                html += `<h3 style="margin-top: 30px; color: #10b981;">${advisorName}</h3>`;
-                html += `<div class="stats-cards">
+            // Main metrics
+            html += '<div class="stats-cards">';
+            html += `
+                <div class="stat-card">
+                    <div class="stat-number">${summary.total_contacts}</div>
+                    <div class="stat-label">Total Contacts</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">${summary.total_opportunities}</div>
+                    <div class="stat-label">Investment Opportunities</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">${summary.contacts_without_opportunities}</div>
+                    <div class="stat-label">Contact Breakout</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">$${(summary.total_opportunity_value / 1000).toFixed(1)}K</div>
+                    <div class="stat-label">Total Opportunity Value</div>
+                </div>
+            `;
+            html += '</div>';
+
+            // Source Breakdown
+            html += '<h3 style="margin-top: 30px; color: #10b981;">📞 Contact Sources</h3>';
+            html += '<div class="stats-cards">';
+            for (const [source, count] of Object.entries(summary.sources_breakdown)) {
+                const icon = source.toLowerCase().includes('reference') ? '👥' : 
+                           source.toLowerCase().includes('walk') ? '🚶' : 
+                           source.toLowerCase().includes('lead') ? '🎯' : '📋';
+                html += `
                     <div class="stat-card">
-                        <div class="stat-number">${advisorData.total_count}</div>
-                        <div class="stat-label">Total Opportunities</div>
+                        <div class="stat-number">${count}</div>
+                        <div class="stat-label">${icon} ${source}</div>
                     </div>
-                    <div class="stat-card">
-                        <div class="stat-number">$${(advisorData.total_value / 1000).toFixed(1)}K</div>
-                        <div class="stat-label">Total Value</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-number">${Object.keys(advisorData.stages).length}</div>
-                        <div class="stat-label">Active Stages</div>
-                    </div>
-                </div>`;
-
-                // Stage breakdown for this advisor
-                html += '<h4 style="margin-top: 20px; color: #059669;">Stage Breakdown:</h4>';
-                html += '<div class="table-container"><table><thead><tr>';
-                html += '<th>Stage</th><th>Count</th><th>Total Value</th>';
-                html += '</tr></thead><tbody>';
-
-                for (const [stageName, stageData] of Object.entries(advisorData.stages)) {
-                    html += `<tr>
-                        <td><strong>${stageName}</strong></td>
-                        <td><span class="badge badge-info">${stageData.count}</span></td>
-                        <td>$${(stageData.total_value || 0).toLocaleString()}</td>
-                    </tr>`;
-                }
-
-                html += '</tbody></table></div>';
-
-                // Show first few opportunities
-                if (advisorData.opportunities.length > 0) {
-                    html += '<h4 style="margin-top: 20px; color: #059669;">Recent Opportunities:</h4>';
-                    html += '<div class="table-container"><table><thead><tr>';
-                    html += '<th>S No.</th><th>Name</th><th>Amount</th><th>Stage</th>';
-                    html += '</tr></thead><tbody>';
-
-                    advisorData.opportunities.slice(0, 5).forEach((opp, index) => {
-                        const stageName = opp.deal_stage ? (opp.deal_stage.name || 'Unknown') : 'Unknown';
-                        
-                        html += `<tr>
-                            <td><strong>${index + 1}</strong></td>
-                            <td><strong>${opp.name || 'Untitled'}</strong></td>
-                            <td>$${(opp.amount || 0).toLocaleString()}</td>
-                            <td><span class="badge badge-warning">${stageName}</span></td>
-                        </tr>`;
-                    });
-
-                    html += '</tbody></table></div>';
-                    
-                    if (advisorData.opportunities.length > 5) {
-                        html += `<p style="text-align: center; color: #999; margin-top: 10px;">... and ${advisorData.opportunities.length - 5} more</p>`;
-                    }
-                }
+                `;
             }
+            html += '</div>';
+
+            // Stage Distribution
+            html += '<h3 style="margin-top: 30px; color: #10b981;">📊 Top Deal Stages</h3>';
+            html += '<div class="table-container"><table><thead><tr>';
+            html += '<th>Rank</th><th>Stage</th><th>Count</th><th>Total Value</th>';
+            html += '</tr></thead><tbody>';
+
+            summary.top_stages.forEach((stage, index) => {
+                html += `<tr>
+                    <td><strong>#${index + 1}</strong></td>
+                    <td><strong>${stage.stage}</strong></td>
+                    <td><span class="badge badge-info">${stage.count}</span></td>
+                    <td>$${parseFloat(stage.total_value || 0).toLocaleString()}</td>
+                </tr>`;
+            });
+
+            html += '</tbody></table></div>';
+
+            // Sales Owner Summary
+            html += '<h3 style="margin-top: 30px; color: #10b981;">👔 Top Sales Owners</h3>';
+            html += '<div class="table-container"><table><thead><tr>';
+            html += '<th>Rank</th><th>Sales Owner</th><th>Leads Count</th><th>Total Value</th>';
+            html += '</tr></thead><tbody>';
+
+            summary.top_owners.forEach((owner, index) => {
+                html += `<tr>
+                    <td><strong>#${index + 1}</strong></td>
+                    <td><strong>${owner.owner}</strong></td>
+                    <td><span class="badge badge-success">${owner.count}</span></td>
+                    <td>$${parseFloat(owner.total_value || 0).toLocaleString()}</td>
+                </tr>`;
+            });
+
+            html += '</tbody></table></div>';
 
             document.getElementById('content').innerHTML = html;
         }
