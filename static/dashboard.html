@@ -13,7 +13,7 @@
 
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
             min-height: 100vh;
             padding: 20px;
         }
@@ -32,7 +32,7 @@
         }
 
         h1 {
-            color: #667eea;
+            color: #10b981;
             font-size: 2.5em;
             margin-bottom: 10px;
         }
@@ -66,7 +66,7 @@
         }
 
         .dashboard-btn.active {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
             color: white;
         }
 
@@ -121,19 +121,19 @@
 
         .filter-group select:focus,
         .filter-group input:focus {
-            border-color: #667eea;
+            border-color: #10b981;
         }
 
         .loading {
             text-align: center;
             padding: 60px;
-            color: #667eea;
+            color: #10b981;
             font-size: 1.2em;
         }
 
         .spinner {
             border: 4px solid #f3f3f3;
-            border-top: 4px solid #667eea;
+            border-top: 4px solid #10b981;
             border-radius: 50%;
             width: 50px;
             height: 50px;
@@ -162,7 +162,7 @@
         }
 
         .stat-card {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
             color: white;
             padding: 20px;
             border-radius: 10px;
@@ -192,7 +192,7 @@
         }
 
         thead {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
             color: white;
         }
 
@@ -250,16 +250,16 @@
 
         .pagination button {
             padding: 10px 20px;
-            border: 2px solid #667eea;
+            border: 2px solid #10b981;
             background: white;
-            color: #667eea;
+            color: #10b981;
             border-radius: 8px;
             cursor: pointer;
             transition: all 0.3s;
         }
 
         .pagination button:hover:not(:disabled) {
-            background: #667eea;
+            background: #10b981;
             color: white;
         }
 
@@ -282,7 +282,7 @@
 
         .section-title {
             font-size: 1.8em;
-            color: #667eea;
+            color: #10b981;
             margin-bottom: 20px;
             display: flex;
             align-items: center;
@@ -290,7 +290,7 @@
         }
 
         .refresh-btn {
-            background: #667eea;
+            background: #10b981;
             color: white;
             border: none;
             padding: 10px 20px;
@@ -301,7 +301,7 @@
         }
 
         .refresh-btn:hover {
-            background: #764ba2;
+            background: #059669;
             transform: scale(1.05);
         }
     </style>
@@ -483,7 +483,7 @@
                 // Show page numbers
                 for (let i = 1; i <= totalPages; i++) {
                     if (totalPages <= 10 || i === 1 || i === totalPages || (i >= currentPage - 2 && i <= currentPage + 2)) {
-                        const activeClass = i === currentPage ? 'style="background: #667eea; color: white;"' : '';
+                        const activeClass = i === currentPage ? 'style="background: #10b981; color: white;"' : '';
                         html += `<button onclick="changePage(${i})" ${activeClass}>${i}</button>`;
                     } else if (i === currentPage - 3 || i === currentPage + 3) {
                         html += '<span class="current-page">...</span>';
@@ -569,7 +569,7 @@
                 // Show page numbers
                 for (let i = 1; i <= totalPages; i++) {
                     if (totalPages <= 10 || i === 1 || i === totalPages || (i >= currentPage - 2 && i <= currentPage + 2)) {
-                        const activeClass = i === currentPage ? 'style="background: #667eea; color: white;"' : '';
+                        const activeClass = i === currentPage ? 'style="background: #10b981; color: white;"' : '';
                         html += `<button onclick="changePage(${i})" ${activeClass}>${i}</button>`;
                     } else if (i === currentPage - 3 || i === currentPage + 3) {
                         html += '<span class="current-page">...</span>';
@@ -675,7 +675,7 @@
             for (const [source, contacts] of Object.entries(grouped)) {
                 if (contacts.length > 0) {
                     const sourceName = source.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-                    html += `<h3 style="margin-top: 30px; color: #667eea;">${sourceName} (${contacts.length})</h3>`;
+                    html += `<h3 style="margin-top: 30px; color: #10b981;">${sourceName} (${contacts.length})</h3>`;
                     html += '<div class="table-container"><table><thead><tr>';
                     html += '<th>S No.</th><th>Name</th><th>Email</th><th>Phone</th><th>Company</th>';
                     html += '</tr></thead><tbody>';
@@ -731,7 +731,7 @@
             for (const [stage, opportunities] of Object.entries(grouped)) {
                 if (opportunities.length > 0) {
                     const totalValue = opportunities.reduce((sum, opp) => sum + (opp.amount || 0), 0);
-                    html += `<h3 style="margin-top: 30px; color: #667eea;">${stage} (${opportunities.length} - $${(totalValue / 1000).toFixed(1)}K)</h3>`;
+                    html += `<h3 style="margin-top: 30px; color: #10b981;">${stage} (${opportunities.length} - $${(totalValue / 1000).toFixed(1)}K)</h3>`;
                     html += '<div class="table-container"><table><thead><tr>';
                     html += '<th>S No.</th><th>Name</th><th>Amount</th><th>Owner</th><th>Created</th>';
                     html += '</tr></thead><tbody>';
@@ -781,7 +781,7 @@
             
             // Display each owner
             for (const [ownerName, ownerData] of Object.entries(grouped)) {
-                html += `<h3 style="margin-top: 30px; color: #667eea;">${ownerName}</h3>`;
+                html += `<h3 style="margin-top: 30px; color: #10b981;">${ownerName}</h3>`;
                 html += `<div class="stats-cards">
                     <div class="stat-card">
                         <div class="stat-number">${ownerData.count}</div>
@@ -830,7 +830,7 @@
             
             // Display each advisor
             for (const [advisorName, advisorData] of Object.entries(grouped)) {
-                html += `<h3 style="margin-top: 30px; color: #667eea;">${advisorName}</h3>`;
+                html += `<h3 style="margin-top: 30px; color: #10b981;">${advisorName}</h3>`;
                 html += `<div class="stats-cards">
                     <div class="stat-card">
                         <div class="stat-number">${advisorData.total_count}</div>
@@ -847,7 +847,7 @@
                 </div>`;
 
                 // Stage breakdown for this advisor
-                html += '<h4 style="margin-top: 20px; color: #764ba2;">Stage Breakdown:</h4>';
+                html += '<h4 style="margin-top: 20px; color: #059669;">Stage Breakdown:</h4>';
                 html += '<div class="table-container"><table><thead><tr>';
                 html += '<th>Stage</th><th>Count</th><th>Total Value</th>';
                 html += '</tr></thead><tbody>';
@@ -864,7 +864,7 @@
 
                 // Show first few opportunities
                 if (advisorData.opportunities.length > 0) {
-                    html += '<h4 style="margin-top: 20px; color: #764ba2;">Recent Opportunities:</h4>';
+                    html += '<h4 style="margin-top: 20px; color: #059669;">Recent Opportunities:</h4>';
                     html += '<div class="table-container"><table><thead><tr>';
                     html += '<th>S No.</th><th>Name</th><th>Amount</th><th>Stage</th>';
                     html += '</tr></thead><tbody>';

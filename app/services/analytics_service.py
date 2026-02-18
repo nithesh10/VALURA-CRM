@@ -18,7 +18,7 @@ class AnalyticsService:
         # Extract contact IDs from deals
         contact_ids_in_deals = set()
         
-        # Build a set of deal names for faster lookup
+        # Build a set of deal names for faster lookup (normalized)
         deal_names_set = set()
         
         for deal in deals:
@@ -34,10 +34,11 @@ class AnalyticsService:
                     if contact.get("id"):
                         contact_ids_in_deals.add(contact["id"])
             
-            # Add deal name to set for matching
+            # Add deal name to set for matching (normalized)
             if deal.get("name"):
-                # Store name in lowercase, stripped
-                deal_names_set.add(deal["name"].strip().lower())
+                # Normalize: lowercase, trim, remove extra spaces
+                normalized_name = " ".join(deal["name"].strip().lower().split())
+                deal_names_set.add(normalized_name)
         
         # Filter contacts not in deals
         contacts_without_deals = []
@@ -49,30 +50,40 @@ class AnalyticsService:
                 continue
             
             # Build contact full name for name-based matching
-            first_name = contact.get("first_name", "").strip()
-            last_name = contact.get("last_name", "").strip()
+            first_name = (contact.get("first_name") or "").strip()
+            last_name = (contact.get("last_name") or "").strip()
             full_name = f"{first_name} {last_name}".strip()
             
-            # Skip contacts without a full name
-            if not full_name or len(full_name) < 3:
+            # Skip contacts without a meaningful name
+            if not full_name or len(full_name) < 2:
                 contacts_without_deals.append(contact)
                 continue
             
-            full_name_lower = full_name.lower()
+            # Normalize contact name
+            full_name_normalized = " ".join(full_name.lower().split())
             
-            # Check if the exact contact name is in the deal names set
-            if full_name_lower in deal_names_set:
+            # Check if the exact contact name matches any deal name
+            if full_name_normalized in deal_names_set:
                 continue
             
-            # If not exact match, check if any deal name contains the contact name
-            # or vice versa (e.g., "John Doe" in "John Doe Investment Opportunity")
+            # Check for partial matches (one contains the other)
             found_match = False
             for deal_name in deal_names_set:
-                # Only check if one contains the other  if both are reasonably long
-                if len(full_name_lower) >= 5 and len(deal_name) >= 5:
-                    if full_name_lower in deal_name or deal_name in full_name_lower:
-                        found_match = True
-                        break
+                # Check if contact name is contained in deal name or vice versa
+                # This handles cases like "John Doe" matching "John Doe Investment"
+                if full_name_normalized in deal_name or deal_name in full_name_normalized:
+                    found_match = True
+                    break
+                
+                # Also check individual name components for better matching
+                # e.g., "Mukesh" should match "Mukesh Kumar" or just "Mukesh"
+                contact_parts = full_name_normalized.split()
+                deal_parts = deal_name.split()
+                
+                # If all contact name parts are in the deal name, consider it a match
+                if all(part in deal_parts for part in contact_parts if len(part) >= 3):
+                    found_match = True
+                    break
             
             if not found_match:
                 contacts_without_deals.append(contact)
