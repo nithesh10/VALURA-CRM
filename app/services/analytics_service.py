@@ -7,13 +7,20 @@ class AnalyticsService:
     def __init__(self, freshworks_service):
         self.freshworks = freshworks_service
     
-    async def get_contacts_without_opportunities(self) -> List[Dict]:
+    async def get_contacts_without_opportunities(self, pipeline_id: Optional[int] = None) -> List[Dict]:
         """
         Get all contacts that are not associated with any opportunities/deals
+        
+        Args:
+            pipeline_id: Optional filter for specific pipeline
         """
         # Get all contacts and deals
         contacts = await self.freshworks.get_all_contacts_paginated()
         deals = await self.freshworks.get_all_deals_paginated()
+        
+        # Filter deals by pipeline if specified
+        if pipeline_id:
+            deals = [d for d in deals if d.get("deal_pipeline_id") == int(pipeline_id)]
         
         # Extract contact IDs from deals
         contact_ids_in_deals = set()
@@ -90,15 +97,20 @@ class AnalyticsService:
         
         return contacts_without_deals
     
-    async def get_contacts_by_source(self, source_filter: Optional[str] = None) -> Dict[str, List[Dict]]:
+    async def get_contacts_by_source(self, source_filter: Optional[str] = None, pipeline_id: Optional[int] = None) -> Dict[str, List[Dict]]:
         """
         Group contacts by source type using sales accounts from deals, tags, and deal stages
         
         Args:
             source_filter: Optional filter for specific source type
+            pipeline_id: Optional filter for specific pipeline
         """
         contacts = await self.freshworks.get_all_contacts_paginated()
         deals = await self.freshworks.get_all_deals_paginated()
+        
+        # Filter deals by pipeline if specified
+        if pipeline_id:
+            deals = [d for d in deals if d.get("deal_pipeline_id") == int(pipeline_id)]
         
         # Build a map of normalized deal names to their sales account names
         deal_name_to_source = {}
@@ -178,14 +190,19 @@ class AnalyticsService:
         
         return result
     
-    async def get_opportunities_by_stage(self, stage_filter: Optional[str] = None) -> Dict[str, List[Dict]]:
+    async def get_opportunities_by_stage(self, stage_filter: Optional[str] = None, pipeline_id: Optional[int] = None) -> Dict[str, List[Dict]]:
         """
         Group opportunities by stage
         
         Args:
             stage_filter: Optional filter for specific stage
+            pipeline_id: Optional filter for specific pipeline
         """
         deals = await self.freshworks.get_all_deals_paginated()
+        
+        # Filter deals by pipeline if specified
+        if pipeline_id:
+            deals = [d for d in deals if d.get("deal_pipeline_id") == int(pipeline_id)]
         
         # Group by stage
         grouped = defaultdict(list)
@@ -207,14 +224,19 @@ class AnalyticsService:
         
         return result
     
-    async def get_leads_by_sales_owner(self, owner_id: Optional[int] = None) -> Dict[str, Any]:
+    async def get_leads_by_sales_owner(self, owner_id: Optional[int] = None, pipeline_id: Optional[int] = None) -> Dict[str, Any]:
         """
         Get leads/opportunities grouped by sales owner with all details
         
         Args:
             owner_id: Optional filter for specific sales owner
+            pipeline_id: Optional filter for specific pipeline
         """
         deals = await self.freshworks.get_all_deals_paginated()
+        
+        # Filter deals by pipeline if specified
+        if pipeline_id:
+            deals = [d for d in deals if d.get("deal_pipeline_id") == int(pipeline_id)]
         
         # Group by owner
         grouped = defaultdict(lambda: {
@@ -347,16 +369,24 @@ class AnalyticsService:
         
         return sorted(list(stages))
     
-    async def get_dashboard_summary(self) -> Dict[str, Any]:
+    async def get_dashboard_summary(self, pipeline_id: Optional[int] = None) -> Dict[str, Any]:
         """
         Get aggregated summary data for the dashboard
         Returns total contacts, opportunities, sources breakdown, top stages, and top owners
+        
+        Args:
+            pipeline_id: Optional filter for specific pipeline
         """
         # Get all data in parallel for efficiency
         contacts = await self.freshworks.get_all_contacts_paginated()
         deals = await self.freshworks.get_all_deals_paginated()
-        contacts_without_opps = await self.get_contacts_without_opportunities()
-        sources_grouped = await self.get_contacts_by_source()
+        
+        # Filter deals by pipeline if specified
+        if pipeline_id:
+            deals = [d for d in deals if d.get("deal_pipeline_id") == int(pipeline_id)]
+        
+        contacts_without_opps = await self.get_contacts_without_opportunities(pipeline_id=pipeline_id)
+        sources_grouped = await self.get_contacts_by_source(pipeline_id=pipeline_id)
         
         # Calculate total opportunity value
         total_value = sum(float(deal.get("amount") or deal.get("deal_value") or 0) for deal in deals)

@@ -226,3 +226,17 @@ class FreshworksService:
             page += 1
         
         return all_deals
+    
+    async def get_all_pipelines(self) -> List[Dict]:
+        """
+        Get all deal pipelines from Freshworks CRM
+        
+        Returns:
+            List of pipeline objects with id, name, and other details
+        """
+        try:
+            result = await self._make_request("selector/deal_pipelines", {})
+            return result.get("deal_pipelines", [])
+        except Exception as e:
+            print(f"Warning: Failed to fetch pipelines: {e}")
+            return []

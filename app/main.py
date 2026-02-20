@@ -74,14 +74,21 @@ async def get_all_contacts(
 @app.get("/api/opportunities")
 async def get_all_opportunities(
     page: int = Query(1, ge=1),
-    per_page: int = Query(25, ge=1, le=100)
+    per_page: int = Query(25, ge=1, le=100),
+    pipeline_id: Optional[int] = None
 ):
     """Get all investment opportunities in tabular format"""
     try:
         opportunities = await freshworks_service.get_all_deals(page=page, per_page=per_page)
+        deals = opportunities.get("deals", [])
+        
+        # Filter by pipeline if specified
+        if pipeline_id:
+            deals = [d for d in deals if d.get("deal_pipeline_id") == pipeline_id]
+        
         return {
             "success": True,
-            "data": opportunities.get("deals", []),
+            "data": deals,
             "meta": opportunities.get("meta", {}),
             "page": page,
             "per_page": per_page
@@ -93,10 +100,10 @@ async def get_all_opportunities(
 # 3. Contacts NOT in Opportunities
 # ============================================
 @app.get("/api/contacts-not-in-opportunities")
-async def get_contacts_not_in_opportunities():
+async def get_contacts_not_in_opportunities(pipeline_id: Optional[int] = None):
     """Get contacts that are not associated with any opportunities"""
     try:
-        result = await analytics_service.get_contacts_without_opportunities()
+        result = await analytics_service.get_contacts_without_opportunities(pipeline_id=pipeline_id)
         return {
             "success": True,
             "data": result,
@@ -109,13 +116,13 @@ async def get_contacts_not_in_opportunities():
 # 4. Contacts by Source (Referral, Walk-in, Online)
 # ============================================
 @app.get("/api/contacts-by-source")
-async def get_contacts_by_source(source: Optional[str] = None):
+async def get_contacts_by_source(source: Optional[str] = None, pipeline_id: Optional[int] = None):
     """
     Get contacts grouped by source type (Referral, Walk-in, Online Walk-in)
-    Optional: filter by specific source
+    Optional: filter by specific source and pipeline
     """
     try:
-        result = await analytics_service.get_contacts_by_source(source_filter=source)
+        result = await analytics_service.get_contacts_by_source(source_filter=source, pipeline_id=pipeline_id)
         return {
             "success": True,
             "data": result,
@@ -133,13 +140,13 @@ async def get_contacts_by_source(source: Optional[str] = None):
 # 5. Opportunities Grouped by Stage
 # ============================================
 @app.get("/api/opportunities-by-stage")
-async def get_opportunities_by_stage(stage: Optional[str] = None):
+async def get_opportunities_by_stage(stage: Optional[str] = None, pipeline_id: Optional[int] = None):
     """
     Get opportunities grouped by stage
-    Optional: filter by specific stage
+    Optional: filter by specific stage and pipeline
     """
     try:
-        result = await analytics_service.get_opportunities_by_stage(stage_filter=stage)
+        result = await analytics_service.get_opportunities_by_stage(stage_filter=stage, pipeline_id=pipeline_id)
         return {
             "success": True,
             "data": result,
@@ -152,13 +159,13 @@ async def get_opportunities_by_stage(stage: Optional[str] = None):
 # 6. Leads by Sales Owner
 # ============================================
 @app.get("/api/leads-by-sales-owner")
-async def get_leads_by_sales_owner(owner_id: Optional[int] = None):
+async def get_leads_by_sales_owner(owner_id: Optional[int] = None, pipeline_id: Optional[int] = None):
     """
     Get leads/opportunities filtered by sales owner with all details
-    Optional: filter by specific owner_id
+    Optional: filter by specific owner_id and pipeline_id
     """
     try:
-        result = await analytics_service.get_leads_by_sales_owner(owner_id=owner_id)
+        result = await analytics_service.get_leads_by_sales_owner(owner_id=owner_id, pipeline_id=pipeline_id)
         return {
             "success": True,
             "data": result,
@@ -171,7 +178,7 @@ async def get_leads_by_sales_owner(owner_id: Optional[int] = None):
 # 7. Dashboard Summary
 # ============================================
 @app.get("/api/summary")
-async def get_dashboard_summary():
+async def get_dashboard_summary(pipeline_id: Optional[int] = None):
     """
     Get aggregated dashboard summary with key metrics:
     - Total contacts and opportunities
@@ -181,7 +188,7 @@ async def get_dashboard_summary():
     - Top sales owners
     """
     try:
-        result = await analytics_service.get_dashboard_summary()
+        result = await analytics_service.get_dashboard_summary(pipeline_id=pipeline_id)
         return {
             "success": True,
             "data": result
@@ -212,6 +219,18 @@ async def get_stages():
         return {
             "success": True,
             "data": stages
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/pipelines")
+async def get_pipelines():
+    """Get list of all deal pipelines"""
+    try:
+        pipelines = await freshworks_service.get_all_pipelines()
+        return {
+            "success": True,
+            "data": pipelines
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
