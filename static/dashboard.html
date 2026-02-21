@@ -738,7 +738,7 @@
         }
 
         async function loadContactsBySource(filterSource = null) {
-            const response = await fetch(buildURL(`${API_BASE}/api/contacts-by-source`, filterSource ? { source: filterSource } : {}));
+            const response = await fetch(buildURL(`${API_BASE}/api/contacts/by-source`, filterSource ? { source: filterSource } : {}));
             const data = await response.json();
 
             if (!data.success) throw new Error('Failed to load data');
@@ -830,7 +830,7 @@
         }
 
         async function loadOpportunitiesByStage() {
-            const response = await fetch(buildURL(`${API_BASE}/api/opportunities-by-stage`));
+            const response = await fetch(buildURL(`${API_BASE}/api/opportunities/by-stage`));
             const data = await response.json();
 
             if (!data.success) throw new Error('Failed to load data');
