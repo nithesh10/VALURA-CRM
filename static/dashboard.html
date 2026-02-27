@@ -519,7 +519,69 @@
             const contacts = data.data;
             const meta = data.meta;
 
-            let html = '<div class="section-title">📇 All Contacts <button class="refresh-btn" onclick="loadView(\'contacts\')">🔄 Refresh</button></div>';
+            let html = '<div class="section-title">📇 All Contacts '
+                + '<button class="refresh-btn" onclick="loadView(\'contacts\')">🔄 Refresh</button>'
+                + '<button class="download-btn" onclick="downloadContactsCSV()" style="margin-left:10px;background:#10b981;color:#fff;border:none;padding:8px 16px;border-radius:4;cursor:pointer;">⬇️ Download CSV</button>'
+                + '</div>';
+                    // Add CSV download function for contacts
+                    window.downloadContactsCSV = async function() {
+                        // Fetch all contacts from all pages
+                        let allContacts = [];
+                        let page = 1;
+                        let totalPages = 1;
+                        let meta = null;
+                        do {
+                            const response = await fetch(buildURL(`${API_BASE}/api/contacts`, { page, per_page: 100 }));
+                            const data = await response.json();
+                            if (!data.success) {
+                                alert('Failed to fetch contacts for CSV!');
+                                return;
+                            }
+                            allContacts = allContacts.concat(data.data);
+                            meta = data.meta;
+                            totalPages = meta.total_pages || 1;
+                            page++;
+                        } while (page <= totalPages);
+
+                        if (!allContacts.length) {
+                            alert('No contacts to download!');
+                            return;
+                        }
+                        const headers = ['S No.', 'ID', 'Name', 'Email', 'Phone', 'Company', 'Owner'];
+                        const rows = allContacts.map((contact, index) => {
+                            const serialNumber = index + 1;
+                            let ownerName = contact.owner ? (contact.owner.display_name || contact.owner.email) : 'N/A';
+                            if (ownerName && ownerName.startsWith('Owner ')) {
+                                ownerName = ownerName.replace(/^Owner\s+\d+/, 'Unassigned');
+                            }
+                            if (ownerName && ownerName !== 'N/A') {
+                                ownerName = ownerName.replace(/\d+/g, '').trim();
+                            }
+                            const firstName = contact.first_name || '';
+                            const lastName = contact.last_name || '';
+                            const fullName = `${firstName} ${lastName}`.trim();
+                            const displayName = fullName || contact.email || contact.id || 'No Name';
+                            return [
+                                serialNumber,
+                                contact.id || 'N/A',
+                                displayName,
+                                contact.email || 'N/A',
+                                contact.mobile_number || contact.work_number || 'N/A',
+                                contact.company_name || 'N/A',
+                                ownerName
+                            ];
+                        });
+                        const csvContent = [headers.join(','), ...rows.map(r => r.map(val => '"' + String(val).replace(/"/g, '""') + '"').join(','))].join('\r\n');
+                        const blob = new Blob([csvContent], { type: 'text/csv' });
+                        const url = window.URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = 'contacts.csv';
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                        window.URL.revokeObjectURL(url);
+                    };
             
             if (contacts.length === 0) {
                 html += '<div class="no-data">No contacts found</div>';
@@ -641,7 +703,7 @@
                         ownerName = ownerName.replace(/\d+/g, '').trim(); // Remove any remaining numbers
                     }
                     
-                    const stageName = opp.deal_stage ? (opp.deal_stage.name || 'Unknown') : 'Unknown';
+                    const stageName = opp.stage_name || (opp.deal_stage ? (opp.deal_stage.name || 'Unknown') : 'Unknown');
                     const createdDate = opp.created_at ? new Date(opp.created_at).toLocaleDateString() : 'N/A';
                     const reference = opp.contact_id || opp.sales_account_id || 'N/A';
                     
@@ -680,7 +742,7 @@
         }
 
         async function loadContactsNotInOpportunities() {
-            const response = await fetch(buildURL(`${API_BASE}/api/contacts-not-in-opportunities`));
+            const response = await fetch(buildURL(`${API_BASE}/api/contacts/not-in-opportunities`));
             const data = await response.json();
 
             if (!data.success) throw new Error('Failed to load data');
@@ -842,9 +904,10 @@
             
             html += '<div class="stats-cards">';
             for (const [stage, opportunities] of Object.entries(grouped)) {
-                const totalValue = opportunities.reduce((sum, opp) => sum + parseFloat(opp.amount || 0), 0);
+                const oppsArray = Array.isArray(opportunities) ? opportunities : (opportunities.leads || []);
+                const totalValue = oppsArray.reduce((sum, opp) => sum + parseFloat(opp.amount || 0), 0);
                 html += `<div class="stat-card">
-                    <div class="stat-number">${opportunities.length}</div>
+                    <div class="stat-number">${oppsArray.length}</div>
                     <div class="stat-label">${stage}</div>
                 </div>`;
             }
@@ -852,14 +915,15 @@
 
             // Display each stage
             for (const [stage, opportunities] of Object.entries(grouped)) {
-                if (opportunities.length > 0) {
-                    const totalValue = opportunities.reduce((sum, opp) => sum + parseFloat(opp.amount || 0), 0);
-                    html += `<h3 style="margin-top: 30px; color: #10b981;">${stage} (${opportunities.length} - $${(totalValue / 1000).toFixed(1)}K)</h3>`;
+                const oppsArray = Array.isArray(opportunities) ? opportunities : (opportunities.leads || []);
+                if (oppsArray.length > 0) {
+                    const totalValue = oppsArray.reduce((sum, opp) => sum + parseFloat(opp.amount || 0), 0);
+                    html += `<h3 style="margin-top: 30px; color: #10b981;">${stage} (${oppsArray.length} - $${(totalValue / 1000).toFixed(1)}K)</h3>`;
                     html += '<div class="table-container"><table><thead><tr>';
                     html += '<th>S No.</th><th>Name</th><th>Amount</th><th>Owner</th><th>Created</th>';
                     html += '</tr></thead><tbody>';
 
-                    opportunities.slice(0, 10).forEach((opp, index) => {
+                    oppsArray.slice(0, 10).forEach((opp, index) => {
                         // Clean owner name - remove any "Owner " prefix and numbers
                         let ownerName = opp.owner ? (opp.owner.display_name || opp.owner.email) : 'N/A';
                         if (ownerName && ownerName.startsWith('Owner ')) {
@@ -882,8 +946,8 @@
 
                     html += '</tbody></table></div>';
                     
-                    if (opportunities.length > 10) {
-                        html += `<p style="text-align: center; color: #999; margin-top: 10px;">... and ${opportunities.length - 10} more</p>`;
+                    if (oppsArray.length > 10) {
+                        html += `<p style="text-align: center; color: #999; margin-top: 10px;">... and ${oppsArray.length - 10} more</p>`;
                     }
                 }
             }
@@ -892,7 +956,7 @@
         }
 
         async function loadLeadsBySalesOwner() {
-            const response = await fetch(buildURL(`${API_BASE}/api/leads-by-sales-owner`));
+            const response = await fetch(buildURL(`${API_BASE}/api/opportunities/leads-by-sales-owner`));
             const data = await response.json();
 
             if (!data.success) throw new Error('Failed to load data');
@@ -922,7 +986,7 @@
                     html += '</tr></thead><tbody>';
 
                     ownerData.leads.forEach((lead, index) => {
-                        const stageName = lead.deal_stage ? (lead.deal_stage.name || 'Unknown') : 'Unknown';
+                        const stageName = lead.stage_name || (lead.deal_stage ? (lead.deal_stage.name || 'Unknown') : 'Unknown');
                         const createdDate = lead.created_at ? new Date(lead.created_at).toLocaleDateString() : 'N/A';
                         
                         html += `<tr>

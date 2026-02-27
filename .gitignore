@@ -45,7 +45,9 @@ Thumbs.db
 .pytest_cache/
 .coverage
 htmlcov/
-
+dashboard-ts\node_modules
 # Jupyter Notebook
 .ipynb_checkpoints
 dashboard-ts\.env
+dashboard-ts\node_modules
+dashboard-ts\src\services\frontend\node_modules
